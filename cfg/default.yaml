@@ -5,41 +5,21 @@ cuda: True
 track: False
 wandb_project_name: "Darl"
 wandb_entity: ""
-capture_video: True
+capture_video: False
 
-# qnetwork:
-#   c1_f: 32
-#   c1_k: 8
-#   c1_s: 4
-#   c2_f: 64
-#   c2_k: 4
-#   c2_s: 2
-#   c3_f: 64
-#   c3_k: 3
-#   c3_s: 1
-#   linear_f: 512
-
-# actor:
-#   c1_f: 32
-#   c2_f: 64
-#   c3_f: 64
-#   linear_f: 512
-# actor:
-
-# training:
-
-exp_name: 'default'
+exp_name: 'test'
 env_id: "MiniGrid-Empty-8x8-v0"
-total_timesteps: 50_000
-buffer_size: 1000
+total_timesteps: 100_000
+buffer_size: 100_000
 gamma: 0.99
-tau: 1.0
-batch_size: 64
-learning_starts: 1e3 # Change to 1e3
-policy_lr: 3e-4
-q_lr: 3e-4
-update_frequency: 4
-target_network_frequency: 5000
+tau: 0.005
+batch_size: 256
+learning_starts: 5e3
+policy_lr: 1e-4
+q_lr: 1e-4
+update_frequency: 2
+target_network_frequency: 8000
 alpha: 0.2
-autotune: False
+autotune: True
 target_entropy_scale: 0.98
+n_envs: 1

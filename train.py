@@ -1,7 +1,6 @@
 # docs and experiment results can be found at https://docs.cleanrl.dev/rl-algorithms/sac/#sac_ataripy
 import random
 import time
-
 import gymnasium as gym
 import numpy as np
 import minigrid
@@ -17,22 +16,21 @@ from src.models import SoftQNetwork, Actor
 
 def make_env(env_id, seed, idx, capture_video, run_name):
     def thunk():
-        env = gym.make(env_id, render_mode="rgb_array")
-        env = minigrid.wrappers.RGBImgObsWrapper(env)
+        if capture_video:
+            env = gym.make(env_id, render_mode="rgb_array")
+        else:
+            env = gym.make(env_id)
+        # env = minigrid.wrappers.RGBImgObsWrapper(env)
         env = minigrid.wrappers.ImgObsWrapper(env)
         # env = minigrid.wrappers.PositionBonus(env)
+        # env = minigrid.wrappers.ActionBonus(env)
         env = gym.wrappers.RecordEpisodeStatistics(env)
         if capture_video:
             if idx == 0:
-                env = gym.wrappers.RecordVideo(
-                    env, 
-                    f"videos/{run_name}", 
-                    # step_trigger=lambda x: True if x % 33_000 == 0 else False
-                )
+                env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
         # env = gym.wrappers.ResizeObservation(env, (84, 84))
         env = gym.wrappers.GrayScaleObservation(env, keep_dim=True)
-        # env = gym.wrappers.FrameStack(env, 1)
-        # env.seed(seed)
+        # env = gym.wrappers.FrameStack(env, 4)
         env.action_space.seed(seed)
         env.observation_space.seed(seed)
         return env
@@ -69,7 +67,13 @@ def run_training(config):
     device = torch.device("cuda" if torch.cuda.is_available() and config.cuda else "cpu")
 
     # env setup
-    envs = gym.vector.SyncVectorEnv([make_env(config.env_id, config.seed, 0, config.capture_video, run_name)])
+    envs = []
+    for i in range(config.n_envs):
+        if i == 0:
+            envs.append(make_env(config.env_id, config.seed + 100 * i, 0, config.capture_video, run_name))
+        else:
+            envs.append(make_env(config.env_id, config.seed + 100 * i, 0, False, run_name))
+    envs = gym.vector.AsyncVectorEnv(envs)
     envs = gym.wrappers.VectorListInfo(envs)
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
@@ -98,6 +102,7 @@ def run_training(config):
         envs.single_observation_space,
         envs.single_action_space,
         device,
+        n_envs=config.n_envs,
         handle_timeout_termination=True,
     )
     start_time = time.time()
@@ -115,12 +120,14 @@ def run_training(config):
         # TRY NOT TO MODIFY: execute the game and log data.
         # TODO: Run a check if dones shouldn't be ORed with _truncated
         next_obs, rewards, terminated, truncated, infos = envs.step(actions)
-        # dones = [term or trunc for term, trunc in zip(terminated, truncated)]
+        
         dones = terminated
+        # dones = [term | trunc for term, trunc in zip(terminated, truncated)]
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
         for info in infos:
-            if "episode" in info.keys():
+            if "final_info" in info.keys() and "episode" in info["final_info"].keys():
+                info = info["final_info"]
                 print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
                 writer.add_scalar("charts/episodic_return", info["episode"]["r"], global_step)
                 writer.add_scalar("charts/episodic_length", info["episode"]["l"], global_step)
@@ -197,6 +204,25 @@ def run_training(config):
                     target_param.data.copy_(config.tau * param.data + (1 - config.tau) * target_param.data)
 
             if global_step % 100 == 0:
+                actor_grad_norm = 0
+                for p in actor.parameters():
+                    gnorm = p.grad.data.cpu().norm()
+                    actor_grad_norm += gnorm
+
+                qf1_grad_norm = 0
+                for p in qf1.parameters():
+                    gnorm = p.grad.data.cpu().norm()
+                    qf1_grad_norm += gnorm
+
+                qf2_grad_norm = 0
+                for p in qf2.parameters():
+                    gnorm = p.grad.data.cpu().norm()
+                    qf2_grad_norm += gnorm
+
+                writer.add_scalar("grads/actor_grad_norm", np.mean(actor_grad_norm), global_step)
+                writer.add_scalar("grads/qf1_grad_norm", np.mean(qf1_grad_norm), global_step)
+                writer.add_scalar("grads/qf2_grad_norm", np.mean(qf2_grad_norm), global_step)
+
                 writer.add_scalar("losses/qf1_values", qf1_a_values.mean().item(), global_step)
                 writer.add_scalar("losses/qf2_values", qf2_a_values.mean().item(), global_step)
                 writer.add_scalar("losses/qf1_loss", qf1_loss.item(), global_step)
