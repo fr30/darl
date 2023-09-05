@@ -30,19 +30,22 @@ wandb_project_name: "Darl"
 wandb_entity: ""
 capture_video: False
 
+
 exp_name: 'test'
 env_id: "MiniGrid-Empty-8x8-v0"
-total_timesteps: 100_000
+total_timesteps: 200_000
 buffer_size: 100_000
 gamma: 0.99
-tau: 0.005
 batch_size: 256
 learning_starts: 5e3
-policy_lr: 1e-4
-q_lr: 1e-4
-update_frequency: 2
+
+tau: 0.021
+policy_lr: 0.0003
+q_lr: 0.0006
+alpha: 0.3
+target_entropy_scale: 0.89
+update_frequency: 4
+
 target_network_frequency: 8000
-alpha: 0.2
 autotune: True
-target_entropy_scale: 0.98
 n_envs: 1

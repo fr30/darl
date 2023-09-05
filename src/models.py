@@ -19,7 +19,7 @@ class SoftQNetwork(nn.Module):
         super().__init__()
         obs_shape = envs.single_observation_space.shape
         self.conv = nn.Sequential(
-            layer_init(nn.Conv2d(obs_shape[2], 16, kernel_size=2, stride=2)),
+            layer_init(nn.Conv2d(obs_shape[2], 16, kernel_size=2, stride=1)),
             nn.ReLU(),
             layer_init(nn.Conv2d(16, 32, kernel_size=2, stride=1)),
             nn.ReLU(),
@@ -35,7 +35,7 @@ class SoftQNetwork(nn.Module):
         self.fc_q = layer_init(nn.Linear(128, envs.single_action_space.n))
 
     def forward(self, x):
-        x = x.transpose(1, 3).transpose(2, 3)
+        x = x.transpose(1, 3).transpose(2, 3) # Should be moved out of definition of the nn
         x = F.relu(self.conv(x / 255.0))
         x = F.relu(self.fc1(x))
         q_vals = self.fc_q(x)
@@ -47,7 +47,7 @@ class Actor(nn.Module):
         super().__init__()
         obs_shape = envs.single_observation_space.shape
         self.conv = nn.Sequential(
-            layer_init(nn.Conv2d(obs_shape[2], 16, kernel_size=2, stride=2)),
+            layer_init(nn.Conv2d(obs_shape[2], 16, kernel_size=2, stride=1)),
             nn.ReLU(),
             layer_init(nn.Conv2d(16, 32, kernel_size=2, stride=1)),
             nn.ReLU(),
