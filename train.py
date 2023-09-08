@@ -8,8 +8,9 @@ import hydra
 import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
-from src.models import SoftQNetwork, Actor
-from src.sac import train_loop
+from torchsummary import summary
+from src.models import Critic, Actor, PixelEncoder
+from src.sac import sac_train_loop
 
 def make_env(env_id, seed, idx, capture_video, run_name):
     def thunk():
@@ -17,23 +18,21 @@ def make_env(env_id, seed, idx, capture_video, run_name):
             env = gym.make(env_id, render_mode="rgb_array")
         else:
             env = gym.make(env_id)
-        # env = minigrid.wrappers.RGBImgObsWrapper(env)
+        env = minigrid.wrappers.RGBImgObsWrapper(env)
         env = minigrid.wrappers.ImgObsWrapper(env)
-        # env = minigrid.wrappers.PositionBonus(env)
-        # env = minigrid.wrappers.ActionBonus(env)
         env = gym.wrappers.RecordEpisodeStatistics(env)
         if capture_video:
             if idx == 0:
                 env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
         # env = gym.wrappers.ResizeObservation(env, (64, 64))
         env = gym.wrappers.GrayScaleObservation(env, keep_dim=True)
+        # env = gym.wrappers.TransformObservation(env, lambda x: x / 255.0)
         # env = gym.wrappers.FrameStack(env, 4)
         env.action_space.seed(seed)
         env.observation_space.seed(seed)
         return env
 
     return thunk
-
 
 @hydra.main(version_base=None, config_path="cfg", config_name="default")
 def train(config):
@@ -75,22 +74,27 @@ def train(config):
     envs = gym.wrappers.VectorListInfo(envs)
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
-    actor = Actor(envs).to(device)
-    qf1 = SoftQNetwork(envs).to(device)
-    qf2 = SoftQNetwork(envs).to(device)
-    qf1_target = SoftQNetwork(envs).to(device)
-    qf2_target = SoftQNetwork(envs).to(device)
-    qf1_target.load_state_dict(qf1.state_dict())
-    qf2_target.load_state_dict(qf2.state_dict())
+    obs_shape = envs.single_observation_space.shape
+    num_actions = envs.single_action_space.n
+
+    encoder = PixelEncoder(obs_shape).to(device)
+    actor = Actor(encoder, num_actions).to(device)
+    critic = Critic(encoder, num_actions).to(device)
+    critic_target = Critic(encoder, num_actions).to(device)
+    critic_target.load_state_dict(critic.state_dict())
+    critic_target.load_state_dict(critic.state_dict())
     # TRY NOT TO MODIFY: eps=1e-4 increases numerical stability
-    q_optimizer = optim.Adam(list(qf1.parameters()) + list(qf2.parameters()), lr=config.q_lr, eps=1e-4)
+    critic_optimizer = optim.Adam(list(critic.parameters()), lr=config.q_lr, eps=1e-4)
     actor_optimizer = optim.Adam(list(actor.parameters()), lr=config.policy_lr, eps=1e-4)
 
-    results = train_loop(device, config, envs, actor, qf1, qf2, qf1_target, qf2_target, actor_optimizer, q_optimizer, logger)
+    summary(actor, obs_shape)
+    summary(critic, obs_shape)
 
-    score = sum(results) / len(results)
-    print(f'SCORE: {score}')
-    return score
+    # results = sac_train_loop(device, config, envs, actor, critic, critic_target, actor_optimizer, critic_optimizer, logger)
+
+    # score = sum(results) / len(results)
+    # print(f'SCORE: {score}')
+    # return score
 
 if __name__ == "__main__":
     train()

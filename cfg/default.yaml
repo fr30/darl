@@ -11,7 +11,7 @@ hydra:
     study_name: minigrid
     storage: null
     n_trials: 100
-    n_jobs: 2
+    n_jobs: 1
     max_failure_rate: 0.0
     params:
       policy_lr: range(1e-4, 1e-3, 1e-4)
@@ -19,7 +19,7 @@ hydra:
       alpha: range(0.2, 0.6, 0.1)
       target_entropy_scale: choice(0.89, 0.98)
       tau: range(5e-3, 5e-2, 1e-3)
-      update_frequency: range(2, 5)
+      batch_size: choice(128, 256)
 
 # Training metadata
 seed: 1
@@ -31,20 +31,20 @@ wandb_entity: ""
 capture_video: False
 
 
-exp_name: 'test'
+exp_name: 'image'
 env_id: "MiniGrid-Empty-8x8-v0"
 total_timesteps: 200_000
-buffer_size: 100_000
+buffer_size: 1_000_000
 gamma: 0.99
-batch_size: 256
 learning_starts: 5e3
+update_frequency: 4
 
 tau: 0.021
 policy_lr: 0.0003
 q_lr: 0.0006
 alpha: 0.3
 target_entropy_scale: 0.89
-update_frequency: 4
+batch_size: 256
 
 target_network_frequency: 8000
 autotune: True
