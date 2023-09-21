@@ -2,13 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from torchvision.transforms import RandomCrop
 from torch.distributions.categorical import Categorical
-
-
-def layer_init(layer, bias_const=0.0):
-    nn.init.kaiming_normal_(layer.weight)
-    torch.nn.init.constant_(layer.bias, bias_const)
-    return layer
+from src.utils import layer_init
 
 
 class Actor(nn.Module):
@@ -21,27 +17,28 @@ class Actor(nn.Module):
             layer_init(nn.Linear(num_features, num_features, bias=True)),
             nn.ReLU(),
             layer_init(nn.Linear(num_features, num_actions, bias=True)),
+            nn.ReLU(),
         )
 
     def forward(self, x):
         x = self.encoder(x).detach()
-        x = F.relu(x)
         logits = self.trunk(x)
         policy_dist = Categorical(logits=logits)
         action = policy_dist.sample()
         # Action probabilities for calculating the adapted soft-Q loss
         action_probs = policy_dist.probs
-        log_prob = F.log_softmax(logits, dim=1) # TODO: Change to regular softmax?
+        # TODO: Change to regular softmax?
+        log_prob = F.log_softmax(logits, dim=1)
 
         return action, log_prob, action_probs
 
 
 class Critic(nn.Module):
-    def __init__(self, encoder, num_actions):
+    def __init__(self, encoder, num_actions, num_features):
         super().__init__()
         self.encoder = encoder
-        self.qf1 = QFunction(encoder.out_features, num_actions)
-        self.qf2 = QFunction(encoder.out_features, num_actions)
+        self.qf1 = QFunction(encoder.out_features, num_actions, num_features)
+        self.qf2 = QFunction(encoder.out_features, num_actions, num_features)
 
     def forward(self, x):
         x = self.encoder(x)
@@ -52,7 +49,8 @@ class Critic(nn.Module):
 
 
 # ALGO LOGIC: initialize agent here:
-# NOTE: Sharing a CNN encoder between Actor and Critics is not recommended for SAC without stopping actor gradients
+# NOTE: Sharing a CNN encoder between Actor and Critics is not recommended
+# for SAC without stopping actor gradients
 # See the SAC+AE paper https://arxiv.org/abs/1910.01741 for more info
 # TL;DR The actor's gradients mess up the representation when using a joint encoder
 class QFunction(nn.Module):
@@ -63,7 +61,7 @@ class QFunction(nn.Module):
             nn.ReLU(),
             layer_init(nn.Linear(num_features, num_features, bias=True)),
             nn.ReLU(),
-            layer_init(nn.Linear(num_features, num_actions, bias=True))
+            layer_init(nn.Linear(num_features, num_actions, bias=True)),
         )
 
     def forward(self, x):
@@ -71,35 +69,38 @@ class QFunction(nn.Module):
 
 
 class PixelEncoder(nn.Module):
-    def __init__(self, obs_shape, num_filters=32, out_features=50):
+    def __init__(self, channels, img_size, crop=False, num_filters=32, out_features=50):
         super().__init__()
         self.out_features = out_features
+        self.should_crop = crop
+        self.crop = RandomCrop(img_size) if crop else None
         self.conv = nn.Sequential(
-            layer_init(nn.Conv2d(obs_shape[2], num_filters, kernel_size=3, stride=2)),
+            layer_init(nn.Conv2d(channels, num_filters, kernel_size=3, stride=2)),
             nn.ReLU(),
             layer_init(nn.Conv2d(num_filters, num_filters, kernel_size=3, stride=1)),
             nn.ReLU(),
             layer_init(nn.Conv2d(num_filters, num_filters, kernel_size=3, stride=1)),
             nn.ReLU(),
             layer_init(nn.Conv2d(num_filters, num_filters, kernel_size=3, stride=1)),
+            nn.ReLU(),
             nn.Flatten(),
         )
 
         with torch.inference_mode():
-            z = torch.zeros(1, obs_shape[2], obs_shape[0], obs_shape[1]).float()
+            z = torch.zeros(1, channels, img_size, img_size).float()
             conv_output_dim = self.conv(z).shape[1]
 
         self.linear = nn.Linear(conv_output_dim, out_features, bias=True)
         self.lnorm = nn.LayerNorm(out_features, eps=1e-05, elementwise_affine=True)
 
-
     def forward(self, x):
         x = x / 255.0
-        x = x.transpose(1, 3).transpose(2, 3) # TODO: Dirt hack, figure out how to put it outside of encoder
+        if self.should_crop:
+            x = self.crop(x)
+        # if self.crop is not None:
+        #     x = self.crop(x)
         x = self.conv(x)
-        x = torch.relu
         x = self.linear(x)
         x = self.lnorm(x)
 
         return x
-    

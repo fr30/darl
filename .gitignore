@@ -1,5 +1,5 @@
 outputs/
-runs/
+*runs*/
 multirun/
 videos/
 __pycache__
