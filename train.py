@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 # from torchsummary import summary
 from src.models import Critic, Actor, PixelEncoder
 from src.sac import sac_train_loop
-from src.utils import make_envs
+from src.utils import make_envs, EnvType
 
 
 @hydra.main(version_base=None, config_path="cfg", config_name="default")
@@ -45,7 +45,8 @@ def train(config):
         "cuda" if torch.cuda.is_available() and config.meta.cuda else "cpu"
     )
 
-    envs = make_envs(config, run_name)
+    envs = make_envs(config, run_name, EnvType.ATARI)
+    # envs = make_envs(config, run_name, EnvType.ATARI)
     assert isinstance(
         envs.action_space, gym.spaces.Discrete
     ), "only discrete action space is supported"

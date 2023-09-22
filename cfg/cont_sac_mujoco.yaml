@@ -34,10 +34,10 @@ meta:
   wandb_entity: ""
 
 actor:
-  hidden_features: 1024
+  hidden_features: 256
 
 critic:
-  hidden_features: 1024
+  hidden_features: 256
 
 encoder:
   img_size: 84
@@ -46,16 +46,12 @@ encoder:
   crop: True
 
 env:
-  id: "PongNoFrameskip-v4"
-  # id: "BeamRiderNoFrameskip-v4"
-  # id: "MiniGrid-Empty-8x8-v0"
-  # id: "MiniGrid-FourRooms-v0"
-  frame_stack: 3
+  id: "InvertedPendulum-v4"
   grayscale: True
-  capture_video: True
+  capture_video: False
 
 train:
-  total_timesteps: 500_000
+  total_timesteps: 100_000
   buffer_size: 100_000
   n_envs: 1
   batch_size: 256
@@ -64,14 +60,13 @@ sac:
   gamma: 0.99
   learning_starts: 5e3
   update_frequency: 4
-  target_network_frequency: 8000
+  policy_frequency: 8000
   autotune: True
   target_entropy_scale: 0.98
-  alpha: 0.1
-  tau: 0.05
+  alpha: 0.2
+  tau: 0.035
 
 optim:
-  # q_lr: 0.0006
-  q_lr: 0.0003
-  policy_lr: 0.0003
-  alpha_lr: 0.0001
+  q_lr: 0.0006
+  policy_lr: 0.0001
+  alpha_lr: 0.001

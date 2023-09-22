@@ -33,6 +33,46 @@ class Actor(nn.Module):
         return action, log_prob, action_probs
 
 
+class ContinuousActor(nn.Module):
+    def __init__(self, encoder, action_space_shape, num_features=1024):
+        super().__init__()
+        self.encoder = encoder
+        self.trunk = nn.Sequential(
+            layer_init(nn.Linear(encoder.out_features, num_features, bias=True)),
+            nn.ReLU(),
+            layer_init(nn.Linear(num_features, num_features, bias=True)),
+            nn.ReLU(),
+            layer_init(nn.Linear(num_features, action_space_shape, bias=True)),
+            nn.ReLU(),
+        )
+        # self.register_buffer(
+        #     "action_scale",
+        #     torch.tensor(
+        #         (env.action_space.high - env.action_space.low) / 2.0,
+        #         dtype=torch.float32,
+        #     ),
+        # )
+        # self.register_buffer(
+        #     "action_bias",
+        #     torch.tensor(
+        #         (env.action_space.high + env.action_space.low) / 2.0,
+        #         dtype=torch.float32,
+        #     ),
+        # )
+
+    def forward(self, x):
+        x = self.encoder(x).detach()
+        logits = self.trunk(x)
+        policy_dist = Categorical(logits=logits)
+        action = policy_dist.sample()
+        # Action probabilities for calculating the adapted soft-Q loss
+        action_probs = policy_dist.probs
+        # TODO: Change to regular softmax?
+        log_prob = F.log_softmax(logits, dim=1)
+
+        return action, log_prob, action_probs
+
+
 class Critic(nn.Module):
     def __init__(self, encoder, num_actions, num_features):
         super().__init__()
@@ -48,20 +88,35 @@ class Critic(nn.Module):
         return q1, q2
 
 
+class ContinuousCritic(nn.Module):
+    def __init__(self, encoder, num_actions, num_features):
+        super().__init__()
+        self.encoder = encoder
+        self.qf1 = QFunction(encoder.out_features + num_actions, 1, num_features)
+        self.qf2 = QFunction(encoder.out_features + num_actions, 1, num_features)
+
+    def forward(self, x):
+        x = self.encoder(x)
+        q1 = self.qf1(x)
+        q2 = self.qf2(x)
+
+        return q1, q2
+
+
 # ALGO LOGIC: initialize agent here:
 # NOTE: Sharing a CNN encoder between Actor and Critics is not recommended
 # for SAC without stopping actor gradients
 # See the SAC+AE paper https://arxiv.org/abs/1910.01741 for more info
 # TL;DR The actor's gradients mess up the representation when using a joint encoder
 class QFunction(nn.Module):
-    def __init__(self, in_features, num_actions, num_features=1024):
+    def __init__(self, in_features, out_features, num_features=1024):
         super().__init__()
         self.trunk = nn.Sequential(
             layer_init(nn.Linear(in_features, num_features, bias=True)),
             nn.ReLU(),
             layer_init(nn.Linear(num_features, num_features, bias=True)),
             nn.ReLU(),
-            layer_init(nn.Linear(num_features, num_actions, bias=True)),
+            layer_init(nn.Linear(num_features, out_features, bias=True)),
         )
 
     def forward(self, x):
