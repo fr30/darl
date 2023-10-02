@@ -6,7 +6,7 @@ import time
 import torch
 import torch.optim as optim
 
-from src.models import QNetwork
+from src.models import QNetwork, PixelEncoder
 from src.dqn import dqn_train_loop
 from src.utils import make_envs
 from torch.utils.tensorboard import SummaryWriter
@@ -50,13 +50,18 @@ def train(config):
     obs_shape = envs.observation_space.shape
     num_actions = envs.action_space.n
 
-    qnetwork = QNetwork(
-        channels=obs_shape[0], img_size=config.encoder.img_size, num_actions=num_actions
+    encoder = PixelEncoder(
+        channels=obs_shape[0],
+        img_size=config.encoder.img_size,
+        crop=config.encoder.crop,
+        num_filters=config.encoder.num_filters,
+        out_features=config.encoder.out_features,
     ).to(device)
+    qnetwork = QNetwork(encoder, config.qnetwork.num_features, num_actions).to(device)
     qnetwork_optimizer = optim.Adam(qnetwork.parameters(), lr=config.optim.q_lr)
-    target_qnetwork = QNetwork(
-        channels=obs_shape[0], img_size=config.encoder.img_size, num_actions=num_actions
-    ).to(device)
+    target_qnetwork = QNetwork(encoder, config.qnetwork.num_features, num_actions).to(
+        device
+    )
     target_qnetwork.load_state_dict(qnetwork.state_dict())
     results = dqn_train_loop(
         device, config, envs, qnetwork, qnetwork_optimizer, target_qnetwork, logger

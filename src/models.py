@@ -4,7 +4,6 @@ import torch.nn.functional as F
 
 from torchvision.transforms import RandomCrop
 from torch.distributions.categorical import Categorical
-from src.utils import layer_init
 
 
 class Actor(nn.Module):
@@ -12,24 +11,19 @@ class Actor(nn.Module):
         super().__init__()
         self.encoder = encoder
         self.trunk = nn.Sequential(
-            layer_init(nn.Linear(encoder.out_features, num_features, bias=True)),
+            nn.Linear(encoder.out_features, num_features, bias=True),
             nn.ReLU(),
-            layer_init(nn.Linear(num_features, num_features, bias=True)),
-            nn.ReLU(),
-            layer_init(nn.Linear(num_features, num_actions, bias=True)),
-            nn.ReLU(),
+            nn.Linear(num_features, num_actions, bias=True),
         )
 
     def forward(self, x):
         x = self.encoder(x).detach()
+        x = F.relu(x)
         logits = self.trunk(x)
         policy_dist = Categorical(logits=logits)
         action = policy_dist.sample()
-        # Action probabilities for calculating the adapted soft-Q loss
         action_probs = policy_dist.probs
-        # TODO: Change to regular softmax?
         log_prob = F.log_softmax(logits, dim=1)
-
         return action, log_prob, action_probs
 
 
@@ -42,9 +36,9 @@ class Critic(nn.Module):
 
     def forward(self, x):
         x = self.encoder(x)
+        x = F.relu(x)
         q1 = self.qf1(x)
         q2 = self.qf2(x)
-
         return q1, q2
 
 
@@ -57,11 +51,9 @@ class QFunction(nn.Module):
     def __init__(self, in_features, num_actions, num_features=1024):
         super().__init__()
         self.trunk = nn.Sequential(
-            layer_init(nn.Linear(in_features, num_features, bias=True)),
+            nn.Linear(in_features, num_features, bias=True),
             nn.ReLU(),
-            layer_init(nn.Linear(num_features, num_features, bias=True)),
-            nn.ReLU(),
-            layer_init(nn.Linear(num_features, num_actions, bias=True)),
+            nn.Linear(num_features, num_actions, bias=True),
         )
 
     def forward(self, x):
@@ -69,35 +61,19 @@ class QFunction(nn.Module):
 
 
 class QNetwork(nn.Module):
-    def __init__(self, channels, img_size, num_actions):
+    def __init__(self, encoder, num_features, num_actions):
         super().__init__()
-        self.conv = nn.Sequential(
-            nn.Conv2d(channels, 32, 8, stride=4),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, 4, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, 3, stride=1),
-            nn.ReLU(),
-            nn.Flatten(),
-        )
-
-        with torch.inference_mode():
-            z = torch.zeros(1, channels, img_size, img_size).float()
-            conv_output_dim = self.conv(z).shape[1]
-
+        self.encoder = encoder
         self.trunk = nn.Sequential(
-            nn.Linear(conv_output_dim, 512),
+            nn.Linear(encoder.out_features, num_features),
             nn.ReLU(),
-            nn.Linear(512, num_actions),
-            # F.hardtanh(input, min_val=- 1., max_val=1.
-            # nn.Sigmoid()
-            # nn.LayerNorm(num_actions, eps=1e-05, elementwise_affine=True),
+            nn.Linear(num_features, num_actions),
         )
 
     def forward(self, x):
-        x = self.conv(x / 255.0)
+        x = self.encoder(x)
+        x = F.relu(x)
         x = self.trunk(x)
-        # x = F.hardtanh(x, 0, 1)
         return x
 
 
@@ -108,17 +84,14 @@ class PixelEncoder(nn.Module):
         self.should_crop = crop
         self.crop = RandomCrop(img_size) if crop else None
         self.conv = nn.Sequential(
-            layer_init(nn.Conv2d(channels, num_filters, kernel_size=3, stride=2)),
+            nn.Conv2d(channels, num_filters, kernel_size=8, stride=4),
             nn.ReLU(),
-            layer_init(nn.Conv2d(num_filters, num_filters, kernel_size=3, stride=1)),
+            nn.Conv2d(num_filters, 2 * num_filters, kernel_size=4, stride=2),
             nn.ReLU(),
-            layer_init(nn.Conv2d(num_filters, num_filters, kernel_size=3, stride=1)),
-            nn.ReLU(),
-            layer_init(nn.Conv2d(num_filters, num_filters, kernel_size=3, stride=1)),
+            nn.Conv2d(2 * num_filters, 2 * num_filters, kernel_size=3, stride=1),
             nn.ReLU(),
             nn.Flatten(),
         )
-
         with torch.inference_mode():
             z = torch.zeros(1, channels, img_size, img_size).float()
             conv_output_dim = self.conv(z).shape[1]

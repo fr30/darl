@@ -53,7 +53,6 @@ def dqn_train_loop(
                 logger.add_scalar(
                     "charts/episodic_length", info["episode"]["l"], global_step
                 )
-                # logger.add_scalar("charts/epsilon", epsilon, global_step)
                 if len(recent_ep_rewards) < 100:
                     recent_ep_rewards += [info["episode"]["r"]]
                 else:
@@ -73,21 +72,10 @@ def dqn_train_loop(
         if global_step > config.dqn.learning_starts:
             if global_step % config.dqn.train_frequency == 0:
                 data = replay_buffer.sample(config.train.batch_size)
-                with torch.no_grad():
-                    target_max, _ = target_qnetwork(data.next_observations).max(dim=1)
-                    td_target = (
-                        data.rewards.flatten()
-                        + config.dqn.gamma * target_max * (1 - data.dones.flatten())
-                    )
-                old_val = qnetwork(data.observations).gather(1, data.actions).squeeze()
-                # loss = F.smooth_l1_loss(td_target, old_val)
-                loss = F.mse_loss(td_target, old_val)
+                loss = dqn_loss(data, qnetwork, target_qnetwork, config.dqn.gamma)
 
                 if global_step % 100 == 0:
                     logger.add_scalar("losses/td_loss", loss, global_step)
-                    logger.add_scalar(
-                        "losses/q_values", old_val.mean().item(), global_step
-                    )
                     logger.add_scalar(
                         "charts/SPS",
                         int(global_step / (time.time() - start_time)),
@@ -107,3 +95,14 @@ def dqn_train_loop(
                         config.dqn.tau * qnetwork_param.data
                         + (1.0 - config.dqn.tau) * target_network_param.data
                     )
+
+
+def dqn_loss(data, qnetwork, target_qnetwork, gamma):
+    with torch.no_grad():
+        target_max, _ = target_qnetwork(data.next_observations).max(dim=1)
+        td_target = data.rewards.flatten() + gamma * target_max * (
+            1 - data.dones.flatten()
+        )
+    old_val = qnetwork(data.observations).gather(1, data.actions).squeeze()
+    loss = F.mse_loss(td_target, old_val)
+    return loss

@@ -32,14 +32,14 @@ meta:
   wandb_project_name: "Darl"
   wandb_entity: ""
 
-critic:
-  hidden_features: 1024
+qnetwork:
+  num_features: 512
 
 encoder:
   img_size: 100
   num_filters: 32
   out_features: 50
-  crop: True
+  crop: False
 
 env:
   id: "MiniGrid-Empty-8x8-v0"
