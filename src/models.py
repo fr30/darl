@@ -68,6 +68,39 @@ class QFunction(nn.Module):
         return self.trunk(x)
 
 
+class QNetwork(nn.Module):
+    def __init__(self, channels, img_size, num_actions):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(channels, 32, 8, stride=4),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, 4, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, 3, stride=1),
+            nn.ReLU(),
+            nn.Flatten(),
+        )
+
+        with torch.inference_mode():
+            z = torch.zeros(1, channels, img_size, img_size).float()
+            conv_output_dim = self.conv(z).shape[1]
+
+        self.trunk = nn.Sequential(
+            nn.Linear(conv_output_dim, 512),
+            nn.ReLU(),
+            nn.Linear(512, num_actions),
+            # F.hardtanh(input, min_val=- 1., max_val=1.
+            # nn.Sigmoid()
+            # nn.LayerNorm(num_actions, eps=1e-05, elementwise_affine=True),
+        )
+
+    def forward(self, x):
+        x = self.conv(x / 255.0)
+        x = self.trunk(x)
+        # x = F.hardtanh(x, 0, 1)
+        return x
+
+
 class PixelEncoder(nn.Module):
     def __init__(self, channels, img_size, crop=False, num_filters=32, out_features=50):
         super().__init__()
@@ -97,8 +130,6 @@ class PixelEncoder(nn.Module):
         x = x / 255.0
         if self.should_crop:
             x = self.crop(x)
-        # if self.crop is not None:
-        #     x = self.crop(x)
         x = self.conv(x)
         x = self.linear(x)
         x = self.lnorm(x)

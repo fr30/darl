@@ -6,15 +6,14 @@ import numpy as np
 import hydra
 import torch
 import torch.optim as optim
-from torch.utils.tensorboard import SummaryWriter
 
-# from torchsummary import summary
 from src.models import Critic, Actor, PixelEncoder
 from src.sac import sac_train_loop
 from src.utils import make_envs
+from torch.utils.tensorboard import SummaryWriter
 
 
-@hydra.main(version_base=None, config_path="cfg", config_name="default")
+@hydra.main(version_base=None, config_path="cfg", config_name="minigrid_grayscale")
 def train(config):
     run_name = f"{config.env.id}__{config.meta.exp_name}__{config.meta.seed}__{int(time.time())}"
     if config.meta.track:
@@ -76,7 +75,6 @@ def train(config):
         num_features=config.critic.hidden_features,
     ).to(device)
     critic_target.load_state_dict(critic.state_dict())
-    critic_target.load_state_dict(critic.state_dict())
     # TRY NOT TO MODIFY: eps=1e-4 increases numerical stability
     critic_optimizer = optim.Adam(
         list(critic.parameters()), lr=config.optim.q_lr, eps=1e-4
@@ -98,6 +96,8 @@ def train(config):
     )
 
     score = sum(results) / len(results)
+    envs.close()
+    logger.close()
     print(f"SCORE: {score}")
     return score
 

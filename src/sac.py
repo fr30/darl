@@ -78,15 +78,12 @@ def sac_train_loop(
                     recent_ep_rewards.append(info["episode"]["r"])
                 break
 
-        # TRY NOT TO MODIFY: save data to reply buffer; handle `terminal_observation`
         real_next_obs = next_obs.copy()
         for idx, done in enumerate(dones):
             if done:
                 real_next_obs[idx] = infos[idx]["terminal_observation"]
 
         replay_buffer.add(obs, real_next_obs, actions, rewards, dones, infos)
-
-        # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
         obs = next_obs
 
         if global_step > config.sac.learning_starts:
