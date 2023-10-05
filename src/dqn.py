@@ -20,6 +20,7 @@ def dqn_train_loop(
         envs.observation_space,
         envs.action_space,
         device,
+        n_envs=config.train.n_envs,
     )
     recent_ep_rewards = []
     start_time = time.time()
@@ -95,6 +96,8 @@ def dqn_train_loop(
                         config.dqn.tau * qnetwork_param.data
                         + (1.0 - config.dqn.tau) * target_network_param.data
                     )
+
+    return recent_ep_rewards
 
 
 def dqn_loss(data, qnetwork, target_qnetwork, gamma):

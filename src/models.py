@@ -42,11 +42,6 @@ class Critic(nn.Module):
         return q1, q2
 
 
-# ALGO LOGIC: initialize agent here:
-# NOTE: Sharing a CNN encoder between Actor and Critics is not recommended
-# for SAC without stopping actor gradients
-# See the SAC+AE paper https://arxiv.org/abs/1910.01741 for more info
-# TL;DR The actor's gradients mess up the representation when using a joint encoder
 class QFunction(nn.Module):
     def __init__(self, in_features, num_actions, num_features=1024):
         super().__init__()
@@ -67,6 +62,8 @@ class QNetwork(nn.Module):
         self.trunk = nn.Sequential(
             nn.Linear(encoder.out_features, num_features),
             nn.ReLU(),
+            nn.Linear(num_features, num_features),
+            nn.ReLU(),
             nn.Linear(num_features, num_actions),
         )
 
@@ -86,6 +83,7 @@ class PixelEncoder(nn.Module):
         self.conv = nn.Sequential(
             nn.Conv2d(channels, num_filters, kernel_size=8, stride=4),
             nn.ReLU(),
+            nn.MaxPool2d((2, 2)),
             nn.Conv2d(num_filters, 2 * num_filters, kernel_size=4, stride=2),
             nn.ReLU(),
             nn.Conv2d(2 * num_filters, 2 * num_filters, kernel_size=3, stride=1),
