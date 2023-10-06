@@ -6,13 +6,17 @@ import gymnasium as gym
 from stable_baselines3.common.vec_env import (
     VecFrameStack,
     DummyVecEnv,
+    SubprocVecEnv,
     VecTransposeImage,
 )
 
 
 def make_envs(config, run_name):
     envs = [_create_env(config, i, run_name) for i in range(config.train.n_envs)]
-    envs = DummyVecEnv(envs)
+    if config.train.n_envs > 1:
+        envs = SubprocVecEnv(envs)
+    else:
+        envs = DummyVecEnv(envs)
     envs = VecTransposeImage(envs)
     envs = VecFrameStack(envs, config.env.frame_stack)
     assert isinstance(

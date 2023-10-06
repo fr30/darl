@@ -1,19 +1,18 @@
-# docs and experiment results can be found at https://docs.cleanrl.dev/rl-algorithms/sac/#sac_ataripy
+import gymnasium as gym
+import hydra
+import numpy as np
 import random
 import time
-import gymnasium as gym
-import numpy as np
-import hydra
 import torch
 import torch.optim as optim
 
-from src.models import DoubleQNetwork, Actor, PixelEncoder
-from src.sac import sac_train_loop
+from src.models import QNetwork, PixelEncoder
+from src.dqn import dqn_train_loop
 from src.utils import make_envs
 from torch.utils.tensorboard import SummaryWriter
 
 
-@hydra.main(version_base=None, config_path="cfg", config_name="minigrid_grayscale")
+@hydra.main(version_base=None, config_path="cfg", config_name="dqn_minigrid_grayscale")
 def train(config):
     run_name = f"{config.env.id}__{config.meta.exp_name}__{config.meta.seed}__{int(time.time())}"
     if config.meta.track:
@@ -35,7 +34,6 @@ def train(config):
         % ("\n".join([f"|{key}|{value}|" for key, value in vars(config).items()])),
     )
 
-    # TRY NOT TO MODIFY: seeding
     random.seed(config.meta.seed)
     np.random.seed(config.meta.seed)
     torch.manual_seed(config.meta.seed)
@@ -59,42 +57,15 @@ def train(config):
         num_filters=config.encoder.num_filters,
         out_features=config.encoder.out_features,
     ).to(device)
-    actor = Actor(
-        encoder=encoder,
-        num_actions=num_actions,
-        num_features=config.actor.hidden_features,
-    ).to(device)
-    critic = DoubleQNetwork(
-        encoder=encoder,
-        num_actions=num_actions,
-        num_features=config.critic.hidden_features,
-    ).to(device)
-    critic_target = DoubleQNetwork(
-        encoder=encoder,
-        num_actions=num_actions,
-        num_features=config.critic.hidden_features,
-    ).to(device)
-    critic_target.load_state_dict(critic.state_dict())
-    # TRY NOT TO MODIFY: eps=1e-4 increases numerical stability
-    critic_optimizer = optim.Adam(
-        list(critic.parameters()), lr=config.optim.q_lr, eps=1e-4
+    qnetwork = QNetwork(encoder, config.qnetwork.num_features, num_actions).to(device)
+    qnetwork_optimizer = optim.Adam(qnetwork.parameters(), lr=config.optim.q_lr)
+    target_qnetwork = QNetwork(encoder, config.qnetwork.num_features, num_actions).to(
+        device
     )
-    actor_optimizer = optim.Adam(
-        list(actor.parameters()), lr=config.optim.policy_lr, eps=1e-4
+    target_qnetwork.load_state_dict(qnetwork.state_dict())
+    results = dqn_train_loop(
+        device, config, envs, qnetwork, qnetwork_optimizer, target_qnetwork, logger
     )
-
-    results = sac_train_loop(
-        device,
-        config,
-        envs,
-        actor,
-        critic,
-        critic_target,
-        actor_optimizer,
-        critic_optimizer,
-        logger,
-    )
-
     score = sum(results) / len(results)
     envs.close()
     logger.close()

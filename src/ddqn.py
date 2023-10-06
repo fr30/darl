@@ -100,12 +100,10 @@ def dqn_train_loop(
     return recent_ep_rewards
 
 
-def dqn_loss(data, qnetwork, target_qnetwork, gamma):
-    with torch.no_grad():
-        target_max, _ = target_qnetwork(data.next_observations).max(dim=1)
-        td_target = data.rewards.flatten() + gamma * target_max * (
-            1 - data.dones.flatten()
-        )
+def ddqn_loss(data, qnetwork, target_qnetwork, gamma):
+    target_best_action = target_qnetwork(data.next_observations).argmax(dim=1).detach()
+    new_qval = qnetwork(data.observations).gather(1, target_best_action).squeeze()
+    td_target = data.rewards.flatten() + gamma * new_qval * (1 - data.dones.flatten())
     old_val = qnetwork(data.observations).gather(1, data.actions).squeeze()
     loss = F.mse_loss(td_target, old_val)
     return loss
