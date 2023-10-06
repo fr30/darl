@@ -64,8 +64,8 @@ dqn:
   train_frequency: 1
   target_network_frequency: 100
   tau: 0.0275
-  # tau: 1.0
-  # tau: 0.995
+  # target_network_frequency: 1000
+  # tau: 0.001
 
 optim:
-  q_lr: 1e-4
+  q_lr: 2e-4

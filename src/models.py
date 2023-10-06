@@ -27,7 +27,7 @@ class Actor(nn.Module):
         return action, log_prob, action_probs
 
 
-class Critic(nn.Module):
+class DoubleQNetwork(nn.Module):
     def __init__(self, encoder, num_actions, num_features):
         super().__init__()
         self.encoder = encoder
@@ -42,36 +42,32 @@ class Critic(nn.Module):
         return q1, q2
 
 
+class QNetwork(nn.Module):
+    def __init__(self, encoder, num_features, num_actions):
+        super().__init__()
+        self.encoder = encoder
+        self.qf = QFunction(encoder.out_features, num_actions, num_features)
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = F.relu(x)
+        x = self.qf(x)
+        return x
+
+
 class QFunction(nn.Module):
     def __init__(self, in_features, num_actions, num_features=1024):
         super().__init__()
         self.trunk = nn.Sequential(
             nn.Linear(in_features, num_features, bias=True),
             nn.ReLU(),
-            nn.Linear(num_features, num_actions, bias=True),
-        )
-
-    def forward(self, x):
-        return self.trunk(x)
-
-
-class QNetwork(nn.Module):
-    def __init__(self, encoder, num_features, num_actions):
-        super().__init__()
-        self.encoder = encoder
-        self.trunk = nn.Sequential(
-            nn.Linear(encoder.out_features, num_features),
-            nn.ReLU(),
-            nn.Linear(num_features, num_features),
+            nn.Linear(num_features, num_features, bias=True),
             nn.ReLU(),
             nn.Linear(num_features, num_actions),
         )
 
     def forward(self, x):
-        x = self.encoder(x)
-        x = F.relu(x)
-        x = self.trunk(x)
-        return x
+        return self.trunk(x)
 
 
 class PixelEncoder(nn.Module):
