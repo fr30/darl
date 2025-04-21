@@ -16,6 +16,6 @@ You can train the model with the command `python train.py`. The config is suppor
 
 - [x] Train SAC to overfit in basic environment.
 - [x] Add a shared pixel encoder.
-- [ ] Add a code for evaluation on test environment in the training loop.
-- [ ] Setup saving of the model and inference.
-- [ ] Clean the code.
+- [x] Add a code for evaluation on test environment in the training loop.
+- [x] Setup saving of the model and inference.
+- [] Clean the code.
