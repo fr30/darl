@@ -18,4 +18,4 @@ You can train the model with the command `python train.py`. The config is suppor
 - [x] Add a shared pixel encoder.
 - [x] Add a code for evaluation on test environment in the training loop.
 - [x] Setup saving of the model and inference.
-- [] Clean the code.
+- [ ] Clean the code.
